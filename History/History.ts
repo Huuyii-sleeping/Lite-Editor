@@ -12,7 +12,7 @@ interface lastOpState {
   type: "insert" | "delete" | "format" | "other";
 }
 
-export default class HistoryManager {
+export class HistoryManager {
   undoStack: HistoryItem[] = [];
   redoStack: HistoryItem[] = [];
   editor: Editor;

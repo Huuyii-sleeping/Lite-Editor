@@ -1,7 +1,8 @@
 import Delta from "../Delta/Delta";
-import HistoryManager from "../History/History";
+import { HistoryManager } from "../History/History";
 import { Renderer } from "../Render/Renderer";
 import { SelectionManager } from "../Selection/Selection";
+import { Clipboard } from "../Module/Clipboard";
 
 export class Editor {
   dom: HTMLElement;
@@ -9,6 +10,7 @@ export class Editor {
   renderer: Renderer;
   selection: SelectionManager;
   history: HistoryManager;
+  clipboard: Clipboard;
 
   constructor(selector: string) {
     this.dom = document.querySelector(selector) as HTMLElement;
@@ -22,6 +24,7 @@ export class Editor {
     this.renderer = new Renderer();
     this.selection = new SelectionManager(this.dom);
     this.history = new HistoryManager(this);
+    this.clipboard = new Clipboard(this);
 
     this.updateView();
     this.bindEvents();
