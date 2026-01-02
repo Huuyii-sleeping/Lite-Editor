@@ -10,6 +10,7 @@
       <button onmousedown="event.preventDefault(); editor.format('bold', true)">
         Bold
       </button>
+      <button onmousedown="event.preventDefault(); editor.format('italic', true)">Em</button>
       <button
         onmousedown="event.preventDefault(); editor.format('color', 'red')"
       >
@@ -17,6 +18,9 @@
       </button>
       <button onmousedown="event.preventDefault(); editor.format('bold', null)">
         Clear Bold
+      </button>
+      <button onmousedown="event.preventDefault(); editor.format('italic', null)">
+        Clear Em
       </button>
       <button
         onmousedown="event.preventDefault(); editor.formatLine('header', 1)"

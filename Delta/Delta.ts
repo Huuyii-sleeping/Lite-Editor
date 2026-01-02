@@ -1,4 +1,4 @@
-import { isEqual } from "lodash-es";
+import { isEqual, random } from "lodash-es";
 import Op from "./Op";
 import OpIterator from "./OpIterator";
 import AttributeMap from "./AttributeMap";
@@ -152,10 +152,113 @@ class Delta {
     return delta;
   }
 
+  /**
+   * 截取Delta中的一部分
+   * 类似String.slice
+   * 用来实现重做功能
+   * @param start
+   * @param end
+   */
+  slice(start: number, end: number = Infinity): Delta {
+    const ops: Op[] = [];
+    const iter = new OpIterator(this.ops);
+    let index = 0;
+
+    while (index < start && iter.hasNext()) {
+      let nextLength = iter.peekLength();
+      if (index + nextLength <= start) {
+        index += nextLength;
+        iter.next();
+      } else {
+        const offset = start - index;
+        iter.next(offset);
+        index += offset;
+      }
+    }
+
+    while (index < end && iter.hasNext()) {
+      let nextLength = iter.peekLength();
+      let take = Math.min(nextLength, end - index);
+
+      const op = iter.next(take);
+      ops.push(op);
+      index += take;
+    }
+
+    return new Delta(ops);
+  }
+
+  /**
+   * 生成当前Delta的反向操作
+   * insert("A") => delete(1)
+   * delete(1) => insert("xxx")
+   * retain(1, {bold: true}) => retain(1, {bold: null })
+   * @param base
+   */
+  invert(base: Delta): Delta {
+    // 储存反转的操作
+    const inverted = new Delta();
+    let baseIndex = 0;
+
+    for (const op of this.ops) {
+      if (op.insert) {
+        inverted.delete(typeof op.insert === "string" ? op.insert.length : 1);
+      } else if (op.retain && op.attributes) {
+        const slice = base.slice(baseIndex, baseIndex + op.retain);
+        slice.ops.forEach((baseOp) => {
+          // 算出属性的相反变更
+          // op.attributes { bold: true } & baseOp.attribute { bold: null } => { bold: null }
+          // op.attributes { bold: null } & baseOp.attribute { bold: true } => { bold: true }
+          const invertedAttr = this._invertAttributes(
+            baseOp.attributes,
+            op.attributes
+          );
+          const len = Op.length(baseOp);
+          inverted.retain(len, invertedAttr);
+        });
+        baseIndex += op.retain;
+      } else if (op.retain) {
+        inverted.retain(op.retain);
+        baseIndex += op.retain;
+      } else if (op.delete) {
+        // 删除操作的相反的内容就是将他们插入回来
+        // 从base文档中将被删的内容切出来
+        const deleteSlice = base.slice(baseIndex, baseIndex + op.delete);
+
+        deleteSlice.ops.forEach((baseOp) => {
+          if (baseOp.insert) {
+            inverted.insert(baseOp.insert as string, baseOp.attributes);
+          }
+        });
+        baseIndex += op.delete;
+      }
+    }
+    return inverted;
+  }
+
   length(): number {
     return this.ops.reduce((length, elem) => {
       return length + Op.length(elem);
     }, 0);
+  }
+
+  /**
+   * 计算反向属性
+   * @param baseAttrs
+   * @param changeAttrs
+   * @returns
+   */
+  private _invertAttributes(baseAttrs: any = {}, changeAttrs: any = {}): any {
+    const inverted: any = {};
+    for (const key in changeAttrs) {
+      if (changeAttrs.hasOwnProperty(key)) {
+        const baseValue = baseAttrs[key];
+        if (baseValue !== changeAttrs[key]) {
+          inverted[key] = baseValue === undefined ? null : baseValue;
+        }
+      }
+    }
+    return inverted;
   }
 }
 

@@ -209,3 +209,121 @@ describe("Delta Compose", () => {
     ]);
   });
 });
+
+describe("Delta slice", () => {
+  it("应该能切片单个 Op 的一部分", () => {
+    // 文档: "Hello"
+    const delta = new Delta().insert("Hello");
+
+    // 切取 "ell" (从索引 1 开始，到 4 结束)
+    const sliced = delta.slice(1, 4);
+
+    expect(sliced.ops).toEqual([{ insert: "ell" }]);
+  });
+
+  it("应该能跨越多个 Op 进行切片", () => {
+    // 文档: "Bold" (加粗) + "Normal"
+    const delta = new Delta().insert("Bold", { bold: true }).insert("Normal");
+
+    // 切取 "oldNorm" (跨越了两个 Op)
+    // "Bold" 的后3个 + "Normal" 的前4个
+    const sliced = delta.slice(1, 8);
+
+    expect(sliced.ops).toEqual([
+      { insert: "old", attributes: { bold: true } },
+      { insert: "Norm" },
+    ]);
+  });
+
+  it("如果没有传 end 参数，应该切到文档末尾", () => {
+    const delta = new Delta().insert("A").insert("B").insert("C");
+
+    // 从 1 开始切到底
+    const sliced = delta.slice(1);
+
+    expect(sliced.ops).toEqual([{ insert: "BC" }]); // 这里的 BC 可能会合并
+  });
+
+  it("应该处理只涉及属性 Op 的情况", () => {
+    // 这种情况比较少见，但在富文本中可能存在纯属性 Op (虽不规范但要健壮)
+    // 主要测试的是对带有属性的文本切片是否保留了属性
+    const delta = new Delta().insert("Text", { color: "red" });
+    const sliced = delta.slice(0, 2);
+    expect(sliced.ops).toEqual([
+      { insert: "Te", attributes: { color: "red" } },
+    ]);
+  });
+});
+
+describe("Delta invert", () => {
+  it("Invert Insert: 插入的反向应该是删除", () => {
+    const base = new Delta().insert("Base");
+    // 操作: 插入 "A"
+    const change = new Delta().retain(4).insert("A");
+
+    // 预期反向: 跳过 4 个，删除 1 个
+    const inverted = change.invert(base);
+
+    expect(inverted.ops).toEqual([{ retain: 4 }, { delete: 1 }]);
+  });
+
+  it("Invert Delete: 删除的反向应该是插入(恢复被删内容)", () => {
+    // 基础: "Hello"
+    const base = new Delta().insert("Hello");
+    // 操作: 跳过 1 个，删除 1 个('e')
+    const change = new Delta().retain(1).delete(1);
+
+    // 预期反向: 跳过 1 个，插入 'e'
+    const inverted = change.invert(base);
+
+    expect(inverted.ops).toEqual([{ retain: 1 }, { insert: "e" }]);
+  });
+
+  it("Invert Attribute: 应该能恢复旧的属性", () => {
+    // 基础: "Text" (红色)
+    const base = new Delta().insert("Text", { color: "red" });
+    // 操作: 把颜色改成蓝色
+    const change = new Delta().retain(4, { color: "blue" });
+
+    // 预期反向: 把颜色改回红色
+    const inverted = change.invert(base);
+
+    expect(inverted.ops).toEqual([{ retain: 4, attributes: { color: "red" } }]);
+  });
+
+  it("Invert Attribute: 应该能移除新增的属性", () => {
+    // 基础: "Text" (无属性)
+    const base = new Delta().insert("Text");
+    // 操作: 加粗
+    const change = new Delta().retain(4, { bold: true });
+
+    // 预期反向: 取消加粗 (bold: null)
+    const inverted = change.invert(base);
+
+    expect(inverted.ops).toEqual([{ retain: 4, attributes: { bold: null } }]);
+  });
+
+  it("混合场景: 替换文字 (删除旧的+插入新的)", () => {
+    // 基础: "A"
+    const base = new Delta().insert("A");
+    // 操作: 删掉 "A"，插入 "B" (即替换)
+    const change = new Delta().delete(1).insert("B");
+
+    // 预期反向: 删掉 "B"，插回 "A"
+    // 注意: 在 invert 逻辑中，insert 的反向是 delete，delete 的反向是 insert
+    // change: delete(1) -> 对应 insert("A")
+    // change: insert("B") -> 对应 delete(1)
+    // 顺序很重要：insert 先发生，delete 后发生（在反向操作中）
+    // 或者看 Delta 结构：ops 里的顺序。
+
+    // change: [{delete: 1}, {insert: "B"}]
+    // inverted: [{insert: "A"}, {delete: 1}]
+    // 解释:
+    // 1. 处理 delete(1): 此时 baseIndex=0, 找出 base 里的 "A", 生成 insert("A")
+    // 2. 处理 insert("B"): 生成 delete(1)
+
+    const inverted = change.invert(base);
+
+    expect(inverted.ops).toEqual([{ insert: "A" }, { delete: 1 }]);
+  });
+});

@@ -1,4 +1,5 @@
 import Delta from "../Delta/Delta";
+import HistoryManager from "../History/History";
 import { Renderer } from "../Render/Renderer";
 import { SelectionManager } from "../Selection/Selection";
 
@@ -7,6 +8,7 @@ export class Editor {
   doc: Delta;
   renderer: Renderer;
   selection: SelectionManager;
+  history: HistoryManager;
 
   constructor(selector: string) {
     this.dom = document.querySelector(selector) as HTMLElement;
@@ -19,6 +21,7 @@ export class Editor {
     this.doc = new Delta().insert("Hello World\n");
     this.renderer = new Renderer();
     this.selection = new SelectionManager(this.dom);
+    this.history = new HistoryManager(this);
 
     this.updateView();
     this.bindEvents();
@@ -44,6 +47,8 @@ export class Editor {
       // 自己计算出Delta的变更
       const change = this.getDeltaFromInput(e, currentIndex);
       if (change) {
+        // compose 之前记录旧的文档，因为要对比旧的文档生成历史记录
+        this.history.record(change, this.doc, range);
         this.doc = this.doc.compose(change);
         this.updateView();
 
@@ -59,6 +64,24 @@ export class Editor {
 
         this.selection.setSelection(newIndex);
         console.log("Current Model:", JSON.stringify(this.doc.ops));
+      }
+    });
+
+    this.dom.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "z") {
+          e.preventDefault();
+          if (e.shiftKey) {
+            this.history.redo();
+          } else {
+            this.history.undo();
+          }
+        }
+
+        if (e.key === "y") {
+          e.preventDefault();
+          this.history.redo();
+        }
       }
     });
   }
@@ -123,6 +146,9 @@ export class Editor {
     const change = new Delta()
       .retain(range.index) // 跳过前面的内容
       .retain(range.length, { [format]: value }); // 对选中的内容进行格式化
+
+    // 记录操作历史
+    this.history.record(change, this.doc, range);
     this.doc = this.doc.compose(change);
     this.updateView();
     // 恢复原来的选区
@@ -148,6 +174,7 @@ export class Editor {
       .retain(1, { [format]: value });
 
     console.log("Apply Block Format:", JSON.stringify(change.ops));
+    this.history.record(change, this.doc, range);
     this.doc = this.doc.compose(change);
     this.updateView();
 
