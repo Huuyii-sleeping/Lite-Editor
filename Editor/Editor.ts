@@ -76,7 +76,18 @@ export class Editor {
     }
 
     if (e.inputType === "insertParagraph") {
-      return new Delta().retain(index).insert("\n");
+      // 查看当前的样式
+      const currentFormat = this._getLineFormat(index);
+      // 处理逻辑：
+      // 在当前位置插入一个具有继承属性的回车
+      // 清除最后的回车当中的样式
+      const delta = new Delta().retain(index).insert("\n", currentFormat);
+      if (currentFormat.header) {
+        const lineEnd = this._findLineEnd(index);
+        const distanceToOldNewLine = lineEnd - index;
+        delta.retain(distanceToOldNewLine).retain(1, { header: null });
+      }
+      return delta;
     }
 
     console.warn("未处理的输入类型:", e.inputType);
@@ -121,9 +132,9 @@ export class Editor {
 
   /**
    * 格式化当前行（块级样式）
-   * @param format 
-   * @param value 
-   * @returns 
+   * @param format
+   * @param value
+   * @returns
    */
   formatLine(format: string, value: any) {
     const range = this.selection.getSelection();
@@ -171,5 +182,29 @@ export class Editor {
     }
 
     return this.doc.length();
+  }
+
+  /**
+   * 获取当前行结尾的回车属性
+   * @param index
+   * @returns
+   */
+  private _getLineFormat(index: number): Record<string, any> {
+    // 找到这一行的结尾
+    const lineEndIndex = this._findLineEnd(index);
+
+    if (lineEndIndex >= this.doc.length()) return {};
+
+    // 获取\n的Op
+    let currentPos = 0;
+    for (const op of this.doc.ops) {
+      const len = typeof op.insert === "string" ? op.insert.length : 1;
+      if (currentPos + len > lineEndIndex) {
+        return op.attributes || {};
+      }
+      currentPos += len;
+    }
+
+    return {};
   }
 }
