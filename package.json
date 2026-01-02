@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "dev": "vite"
   },
   "keywords": [],
   "author": "",
