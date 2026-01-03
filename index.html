@@ -14,11 +14,24 @@
       #editor li {
         margin-bottom: 4px;
       }
+
+      #editor a {
+        color: #007bff;
+        text-decoration: underline;
+        cursor: text;
+      }
+
+      #editor a:hover {
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
     <div class="toolbar" style="margin-bottom: 10px">
-      <button id="btn-bold" onmousedown="event.preventDefault(); editor.format('bold', true)">
+      <button
+        id="btn-bold"
+        onmousedown="event.preventDefault(); editor.format('bold', true)"
+      >
         Bold
       </button>
       <button
@@ -54,6 +67,12 @@
       >
         Clear Header
       </button>
+      <button onmousedown="event.preventDefault(); addLink()">Link</button>
+      <button
+        onmousedown="event.preventDefault(); window.editor.format('link', null)"
+      >
+        Unlink
+      </button>
       <button
         onmousedown="event.preventDefault(); editor.formatLine('list', 'bullet')"
       >
@@ -85,6 +104,7 @@
       window.insertImageBtn = insertImageBtn;
       window.save = save;
       window.load = load;
+      window.addLink = addLink;
       window.editor.on("selection-change", (range) => {
         if (!range) return;
         const formats = window.editor.getFormat();
@@ -96,6 +116,13 @@
           boldBtn.style.backgroundColor = "";
         }
       });
+
+      function addLink() {
+        const url = prompt("请输入链接地址", "https://");
+        if (url) {
+          window.editor.format("link", url);
+        }
+      }
 
       function insertImageBtn() {
         const url = prompt("请输入图片URL", "https://via.placeholder.com/150");

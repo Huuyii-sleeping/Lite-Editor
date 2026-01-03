@@ -47,6 +47,21 @@ export class Editor extends EventEmitter {
 
   // 事件绑定
   bindEvents() {
+    // 监听点击事件，处理超链接的跳转
+    this.dom.addEventListener("click", (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const linkNode = target.closest("a");
+      if (linkNode && linkNode.getAttribute("href")) {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          const href = linkNode.getAttribute("href");
+          if (href) {
+            window.open(href, "_blank");
+          }
+        }
+      }
+    });
+
     // 监听中文输入
     this.dom.addEventListener("compositionstart", () => {
       this.isComposing = true;
