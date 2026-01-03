@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
+      #editor {
+        position: relative;
+      }
       #editor ul,
       #editor ol {
         padding-left: 24px;
@@ -23,6 +26,19 @@
 
       #editor a:hover {
         cursor: pointer;
+      }
+
+      #editor.is-empty::before {
+        content: attr(data-placeholder);
+        color: #aaa;
+        position: absolute;
+        pointer-events: none; /* 让鼠标穿透，不影响点击编辑 */
+        font-style: italic;
+      }
+
+      #editor.read-only {
+        background-color: #f9f9f9;
+        outline: none;
       }
     </style>
   </head>
@@ -93,8 +109,10 @@
       </button>
       <button onclick="save()">保存到控制台</button>
       <button onclick="load()">加载示例数据</button>
+      <button onclick="window.editor.enable()">启用编辑</button>
+      <button onclick="window.editor.disable()">只读模式</button>
     </div>
-    <div id="editor"></div>
+    <div id="editor" data-placeholder="请输入正文..."></div>
     <script type="module">
       import { Editor } from "./Editor/Editor.ts";
 

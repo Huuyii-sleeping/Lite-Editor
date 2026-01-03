@@ -1,10 +1,17 @@
 import Delta from "../Delta/Delta";
+import Op from "../Delta/Op";
 import { HistoryManager } from "../History/History";
 import { Renderer } from "../Render/Renderer";
 import { SelectionManager } from "../Selection/Selection";
 import { Clipboard } from "../Clipboard/Clipboard";
-import Op from "../Delta/Op";
 import { EventEmitter } from "../EventEmitter/EventEmitter";
+
+interface MarkdownRule {
+  match: RegExp;
+  format: string;
+  value: any;
+  length: number;
+}
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
@@ -18,6 +25,13 @@ export class Editor extends EventEmitter {
   // 记录：防止因为中文输入法导致光标乱飞的问题，明确插入的具体位置
   lastSelection: { index: number; length: number } | null = null;
 
+  private markdownRules: MarkdownRule[] = [
+    { match: /^#$/, format: "header", value: 1, length: 1 }, // # -> H1
+    { match: /^##$/, format: "header", value: 2, length: 2 }, // ## -> H2
+    { match: /^(\*|-)$/, format: "list", value: "bullet", length: 1 }, // * 或 - -> 无序列表
+    { match: /^1\.$/, format: "list", value: "ordered", length: 2 }, // 1. -> 有序列表
+  ];
+
   constructor(selector: string) {
     super();
     this.dom = document.querySelector(selector) as HTMLElement;
@@ -27,7 +41,7 @@ export class Editor extends EventEmitter {
     this.dom.style.whiteSpace = "pre-wrap";
     this.dom.style.outline = "none";
 
-    this.doc = new Delta().insert("Hello World\n");
+    this.doc = new Delta().insert("\n");
     this.renderer = new Renderer();
     this.selection = new SelectionManager(this.dom);
     this.history = new HistoryManager(this);
@@ -42,6 +56,11 @@ export class Editor extends EventEmitter {
     const html = this.renderer.render(this.doc);
     if (this.dom.innerHTML !== html) {
       this.dom.innerHTML = html;
+    }
+    if (this.isEmpty()) {
+      this.dom.classList.add("is-empty");
+    } else {
+      this.dom.classList.remove("is-empty");
     }
   }
 
@@ -66,6 +85,7 @@ export class Editor extends EventEmitter {
     this.dom.addEventListener("compositionstart", () => {
       this.isComposing = true;
       this.lastSelection = this.selection.getSelection();
+      this.dom.classList.remove("is-empty");
       console.log("中文输入开始,锁定光标的位置:", this.lastSelection);
     });
 
@@ -88,6 +108,8 @@ export class Editor extends EventEmitter {
         this.selection.setSelection(newIndex);
         this.emit("text-change", this.doc);
         this.lastSelection = null;
+      } else {
+        this.updateView();
       }
     });
 
@@ -95,10 +117,35 @@ export class Editor extends EventEmitter {
     this.dom.addEventListener("beforeinput", (e: InputEvent) => {
       if (this.isComposing) return;
       if (e.inputType === "insertFromComposition") return;
-      e.preventDefault(); // 直接阻止默认行为，不允许直接修改DOM元素
 
       const range = this.selection.getSelection();
       const currentIndex = range ? range.index : 0;
+
+      // 监听 #+" " => 实现标题的作用
+      if (e.inputType === "insertText" && e.data === " ") {
+        const textBefore = this._getTextBeforeCursor(currentIndex);
+        for (const rule of this.markdownRules) {
+          if (rule.match.test(textBefore)) {
+            e.preventDefault();
+
+            const lineEnd = this._findLineEnd(currentIndex);
+            const change = new Delta()
+              .retain(currentIndex - rule.length) // 跳转到#之前
+              .delete(rule.length) // 删除#
+              .retain(lineEnd - currentIndex) // 跳过中间的内容
+              .retain(1, { [rule.format]: rule.value }); // 格式化\n
+
+            this.history.record(change, this.doc, range);
+            this.doc = this.doc.compose(change);
+            this.updateView();
+
+            this.selection.setSelection(currentIndex - rule.length);
+            return;
+          }
+        }
+      }
+
+      e.preventDefault(); // 直接阻止默认行为，不允许直接修改DOM元素
 
       // 自己计算出Delta的变更
       const change = this.getDeltaFromInput(e, currentIndex);
@@ -144,6 +191,26 @@ export class Editor extends EventEmitter {
         this.emit("selection-change", range);
       }, 0);
     });
+  }
+
+  enable(enabled: boolean = true) {
+    this.dom.contentEditable = String(enabled);
+    if (enabled) {
+      this.dom.classList.remove("read-only");
+    } else {
+      this.dom.classList.add("read-only");
+    }
+  }
+
+  disable() {
+    this.enable(false);
+  }
+
+  isEmpty(): boolean {
+    if (this.isComposing) return false;
+    if (this.doc.length() > 1) return false;
+    const firstOp = this.doc.ops[0];
+    return !firstOp || (firstOp.insert === "\n" && this.doc.ops.length === 1);
   }
 
   // 将输入的事件翻译成Delta
@@ -290,6 +357,21 @@ export class Editor extends EventEmitter {
     this.doc = this.doc.compose(change);
     this.updateView();
     this.selection.setSelection(index + 1);
+  }
+
+  /**
+   * 获取当前行，光标之前的文本（检测md文件使用）
+   * @param index 光标位置
+   * @returns
+   */
+  private _getTextBeforeCursor(index: number): string {
+    const lineStart = this._findLineStart(index);
+    const slice = this.doc.slice(lineStart, index);
+
+    return slice.ops.reduce((text, op) => {
+      if (typeof op.insert === "string") return text + op.insert;
+      return text;
+    }, "");
   }
 
   /**
