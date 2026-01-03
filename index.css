@@ -200,3 +200,47 @@ span.token {
 .token.operator {
   background: none !important;
 }
+
+#image-resizer {
+  position: absolute;
+  border: 1px solid #007bff;
+  pointer-events: none;
+  display: none;
+  z-index: 1000;
+}
+
+#image-resizer.is-active {
+  display: block;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 12px; /* 必须有宽度 */
+  height: 12px; /* 必须有高度 */
+  background-color: #007bff; /* 必须有背景色，否则看不见 */
+  border: 1px solid #fff; /* 加个白边更好看 */
+  pointer-events: auto; /* 手柄必须能响应鼠标点击 */
+  box-sizing: border-box;
+  z-index: 1001;
+}
+
+.handle-nw {
+  top: -5px;
+  left: -5px;
+  cursor: nw-resize;
+}
+.handle-ne {
+  top: -5px;
+  right: -5px;
+  cursor: ne-resize;
+}
+.handle-se {
+  bottom: -6px; /* 让手柄中心对准边框角 */
+  right: -6px;
+  cursor: se-resize; /* 鼠标放上去变成调整大小的图标 */
+}
+.handle-sw {
+  bottom: -5px;
+  left: -5px;
+  cursor: sw-resize;
+}

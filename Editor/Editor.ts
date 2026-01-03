@@ -11,6 +11,7 @@ import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-typescript";
 import "prismjs/components/prism-css";
 import "prismjs/components/prism-markup";
+import { ImageResizer } from "../ImageResizer/ImageResizer";
 
 interface MarkdownRule {
   match: RegExp;
@@ -30,7 +31,10 @@ export class Editor extends EventEmitter {
   isComposing: boolean = false;
   // 记录：防止因为中文输入法导致光标乱飞的问题，明确插入的具体位置
   lastSelection: { index: number; length: number } | null = null;
+  // 浮动菜单
   floatingMenu: FloatingMenu;
+  // 图片缩放工具
+  imageResizer: ImageResizer;
 
   private markdownRules: MarkdownRule[] = [
     { match: /^#$/, format: "header", value: 1, length: 1 }, // # -> H1
@@ -58,6 +62,7 @@ export class Editor extends EventEmitter {
     this.history = new HistoryManager(this);
     this.clipboard = new Clipboard(this);
     this.floatingMenu = new FloatingMenu(this);
+    this.imageResizer = new ImageResizer(this);
 
     this.updateView();
     this.bindEvents();
@@ -227,6 +232,62 @@ export class Editor extends EventEmitter {
         this.emit("selection-change", range);
       }, 0);
     });
+  }
+
+  submitChange(change: Delta) {
+    const range = this.selection.getSelection();
+    this.history.record(change, this.doc, range);
+    this.doc = this.doc.compose(change);
+    this.updateView();
+  }
+
+  // 查找图片索引的专用方法
+  findDOMNodeIndex(targetNode: Node): number {
+    let index = 0;
+    const lines = this.dom.children;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.contains(targetNode)) {
+        const childNodes = line.childNodes;
+        for (let j = 0; j < childNodes.length; j++) {
+          const child = childNodes[j];
+          if (child === targetNode) {
+            return index;
+          }
+          if (child.nodeType === Node.TEXT_NODE) {
+            index += (child.textContent || "").length;
+          } else if (child.nodeName === "IMG") {
+            index += 1;
+          } else if (
+            child.nodeName === "SPAN" ||
+            child.nodeName === "STRONG" ||
+            child.nodeName === "EM" ||
+            child.nodeName === "CODE"
+          ) {
+            index += (child.textContent || "").length;
+          }
+        }
+      } else {
+        // 行尾的回车
+        index += this._calculateLineLength(line) + 1;
+      }
+    }
+    return -1;
+  }
+
+  private _calculateLineLength(line: Element): number {
+    let len = 0;
+    line.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        len += (child.textContent || "").length;
+      } else if (child.nodeName === "IMG") {
+        len += 1;
+      } else {
+        len += (child.textContent || "").length;
+      }
+    });
+    return len
   }
 
   getText(): string {
