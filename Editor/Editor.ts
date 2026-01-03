@@ -6,21 +6,12 @@ import { SelectionManager } from "../Selection/Selection";
 import { Clipboard } from "../Clipboard/Clipboard";
 import { EventEmitter } from "../EventEmitter/EventEmitter";
 import { FloatingMenu } from "../FloatingMenu/FloatingMenu";
-import "prismjs/themes/prism.css";
-import "prismjs/components/prism-javascript";
-import "prismjs/components/prism-typescript";
-import "prismjs/components/prism-css";
-import "prismjs/components/prism-markup";
 import { ImageResizer } from "../ImageResizer/ImageResizer";
 import { SlashMenu } from "../SlashMenu/SlashMenu";
-import { nextTick } from "node:process";
-
-interface MarkdownRule {
-  match: RegExp;
-  format: string;
-  value: any;
-  length: number;
-}
+import { InputManager } from "./Helper/InputManager";
+import { DragManager } from "./Helper/DragManager";
+import { DocumentHelper } from "./Helper/DocumentHelper";
+import { ShortcutManager } from "./Helper/ShortcutManager";
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
@@ -39,17 +30,9 @@ export class Editor extends EventEmitter {
   imageResizer: ImageResizer;
   // / 展示菜单功能
   slashMenu: SlashMenu;
-
-  private markdownRules: MarkdownRule[] = [
-    { match: /^#$/, format: "header", value: 1, length: 1 }, // # -> H1
-    { match: /^##$/, format: "header", value: 2, length: 2 }, // ## -> H2
-    { match: /^###$/, format: "header", value: 3, length: 3 }, // ### -> H3
-    { match: /^(\*|-)$/, format: "list", value: "bullet", length: 1 }, // * 或 - -> 无序列表
-    { match: /^1\.$/, format: "list", value: "ordered", length: 2 }, // 1. -> 有序列表
-    { match: /^>$/, format: "blockquote", value: true, length: 1 }, // > -> 引用 (如果你支持的话)
-    { match: /^>$/, format: "blockquote", value: true, length: 1 },
-    { match: /^```$/, format: "code-block", value: true, length: 3 },
-  ];
+  inputManager: InputManager;
+  dragManager: DragManager;
+  shortcutManager: ShortcutManager;
 
   constructor(selector: string) {
     super();
@@ -68,6 +51,9 @@ export class Editor extends EventEmitter {
     this.floatingMenu = new FloatingMenu(this);
     this.imageResizer = new ImageResizer(this);
     this.slashMenu = new SlashMenu(this);
+    this.inputManager = new InputManager(this);
+    this.dragManager = new DragManager(this);
+    this.shortcutManager = new ShortcutManager(this);
 
     this.updateView();
     this.bindEvents();
@@ -86,54 +72,7 @@ export class Editor extends EventEmitter {
     }
   }
 
-  // 事件绑定
   bindEvents() {
-    // 监听 /
-    this.dom.addEventListener("input", (e: Event) => {
-      const inputEvent = e as InputEvent;
-      console.log(inputEvent.data);
-      if (inputEvent.data === "/") {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-
-          // 呼出菜单
-          // 注意：rect.left bottom 是基于视口进行操作的
-          this.slashMenu.show(
-            rect.left + window.scrollX,
-            rect.bottom + window.scrollY
-          );
-        }
-      } else {
-        if (this.slashMenu.isVisiable()) {
-          this.slashMenu.hide();
-        }
-      }
-    });
-
-    // 监听拖拽上传
-    this.dom.addEventListener("drag", (e: DragEvent) => {
-      e.preventDefault();
-
-      const files = e.dataTransfer?.files;
-      if (files && files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith("image/")) {
-          // 体验优化：
-          // 我们希望放到鼠标移动的位置，而不是当前光标的位置
-          this._updateSelectionByMouse(e.clientX, e.clientY);
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const base64 = event?.target?.result as string;
-            if (base64) this.insertImage(base64);
-          };
-          reader.readAsDataURL(file);
-        }
-      }
-    });
-
-    // 监听点击事件，处理超链接的跳转
     this.dom.addEventListener("click", (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const linkNode = target.closest("a");
@@ -144,135 +83,6 @@ export class Editor extends EventEmitter {
           if (href) {
             window.open(href, "_blank");
           }
-        }
-      }
-    });
-
-    // 监听中文输入
-    this.dom.addEventListener("compositionstart", () => {
-      this.isComposing = true;
-      this.lastSelection = this.selection.getSelection();
-      this.dom.classList.remove("is-empty");
-      console.log("中文输入开始,锁定光标的位置:", this.lastSelection);
-    });
-
-    this.dom.addEventListener("compositionend", (e: CompositionEvent) => {
-      this.isComposing = false;
-      console.log("中文输入结束,上屏内容:", e.data);
-      if (e.data) {
-        const insertIndex = this.lastSelection ? this.lastSelection.index : 0;
-
-        // 注意：此时浏览器已经修改了DOM，此时getSelection算出来的index可能不准
-        // 通常具有compositionend发生时，光标还在原来的位置（或者被浏览器移动到文字后面）
-        // 稳妥做法：假设光标在输入开始的位置
-        // 或者直接插入，使用updateView进行修正
-        const change = new Delta().retain(insertIndex).insert(e.data);
-        // this._handleDeltaChange(change, currentIndex, e.data.length);
-        this.history.record(change, this.doc, this.lastSelection);
-        this.doc = this.doc.compose(change);
-        this.updateView();
-        const newIndex = insertIndex + e.data.length;
-        this.selection.setSelection(newIndex);
-        this.emit("text-change", this.doc);
-      } else {
-        this.updateView();
-        if (this.lastSelection) {
-          this.selection.setSelection(this.lastSelection.index);
-        }
-      }
-      this.lastSelection = null;
-    });
-
-    // 使用beforeInput拦截输入操作
-    this.dom.addEventListener("beforeinput", (e: InputEvent) => {
-      if (this.isComposing) return;
-      if (e.inputType === "insertFromComposition") return;
-
-      const range = this.selection.getSelection();
-      const currentIndex = range ? range.index : 0;
-
-      // 监听 #+" " => 实现标题的作用
-      if (e.inputType === "insertText" && e.data === " ") {
-        const textBefore = this._getTextBeforeCursor(currentIndex);
-        for (const rule of this.markdownRules) {
-          if (rule.match.test(textBefore)) {
-            e.preventDefault();
-
-            const lineEnd = this._findLineEnd(currentIndex);
-            const change = new Delta()
-              .retain(currentIndex - rule.length) // 跳转到#之前
-              .delete(rule.length) // 删除#
-              .retain(lineEnd - currentIndex) // 跳过中间的内容
-              .retain(1, { [rule.format]: rule.value }); // 格式化\n
-
-            this.history.record(change, this.doc, range);
-            this.doc = this.doc.compose(change);
-            this.updateView();
-
-            this.selection.setSelection(currentIndex - rule.length);
-            return;
-          }
-        }
-      }
-
-      // 监听 / 调用菜单
-      if (e.inputType === "insertText" && e.data === "/") {
-        // 使用setTimeout是因为 同步调用的时候，DOM可能还没有准备好，导致焦点聚焦到左上角
-        // 所以我们可以等到DOM加载完毕之后再次操作
-        setTimeout(() => {
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            if (rect.top === 0 && rect.left === 0) return;
-            this.slashMenu.show(
-              rect.left + window.scrollX,
-              rect.top + window.scrollY
-            );
-          }
-        }, 0);
-      } else {
-        if (this.slashMenu && this.slashMenu.isVisiable()) {
-          this.slashMenu.hide();
-        }
-      }
-
-      e.preventDefault(); // 直接阻止默认行为，不允许直接修改DOM元素
-
-      // 自己计算出Delta的变更
-      const change = this.getDeltaFromInput(e, currentIndex);
-      if (change) {
-        const oldDocLength = this.doc.length();
-        this.history.record(change, this.doc, range);
-        this.doc = this.doc.compose(change);
-        this.updateView();
-
-        let newIndex = currentIndex;
-        const newDocLength = this.doc.length();
-        if (e.inputType === "deleteContentBackward") {
-          newIndex = Math.max(0, newIndex - 1);
-        } else {
-          const diff = newDocLength - oldDocLength;
-          if (diff > 0) newIndex += diff;
-        }
-        this.selection.setSelection(newIndex);
-      }
-    });
-
-    this.dom.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === "z") {
-          e.preventDefault();
-          if (e.shiftKey) {
-            this.history.redo();
-          } else {
-            this.history.undo();
-          }
-        }
-
-        if (e.key === "y") {
-          e.preventDefault();
-          this.history.redo();
         }
       }
     });
@@ -299,108 +109,6 @@ export class Editor extends EventEmitter {
     this.updateView();
   }
 
-  // 查找图片索引的专用方法
-  findDOMNodeIndex(targetNode: Node): number {
-    let index = 0;
-    const lines = this.dom.children;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.contains(targetNode)) {
-        const childNodes = line.childNodes;
-        for (let j = 0; j < childNodes.length; j++) {
-          const child = childNodes[j];
-          if (child === targetNode) {
-            return index;
-          }
-          if (child.nodeType === Node.TEXT_NODE) {
-            index += (child.textContent || "").length;
-          } else if (child.nodeName === "IMG") {
-            index += 1;
-          } else if (
-            child.nodeName === "SPAN" ||
-            child.nodeName === "STRONG" ||
-            child.nodeName === "EM" ||
-            child.nodeName === "CODE"
-          ) {
-            index += (child.textContent || "").length;
-          }
-        }
-      } else {
-        // 行尾的回车
-        index += this._calculateLineLength(line) + 1;
-      }
-    }
-    return -1;
-  }
-
-  private _calculateLineLength(line: Element): number {
-    let len = 0;
-    line.childNodes.forEach((child) => {
-      if (child.nodeType === Node.TEXT_NODE) {
-        len += (child.textContent || "").length;
-      } else if (child.nodeName === "IMG") {
-        len += 1;
-      } else {
-        len += (child.textContent || "").length;
-      }
-    });
-    return len;
-  }
-
-  getText(): string {
-    return this.doc.ops.reduce((text, op) => {
-      if (typeof op.insert === "string") {
-        return text + op.insert;
-      }
-      return text + " ";
-    }, "");
-  }
-
-  search(query: string) {
-    if (!query) {
-      return;
-    }
-    const text = this.getText();
-    const index = text.indexOf(query);
-    if (index !== -1) {
-      this.selection.setSelection(index, query.length);
-      console.log(`Found ${query} at index ${index}`);
-    } else {
-      alert("Not Found");
-    }
-  }
-
-  replace(query: string, replacement: string) {
-    const selection = this.selection.getSelection();
-    if (selection?.length === 0) {
-      alert("请选中要进行替换的区域");
-      return;
-    }
-    const text = this.getText();
-    if (query.length === 0) {
-      const change = new Delta()
-        .retain(selection!.index)
-        .delete(selection!.length)
-        .insert(replacement);
-      this.doc = this.doc.compose(change);
-      this.history.record(change, this.doc, selection);
-      this.updateView();
-      return;
-    }
-    const index = text.indexOf(query);
-    if (index !== -1) {
-      const change = new Delta()
-        .retain(index)
-        .delete(query.length)
-        .insert(replacement);
-
-      this.doc = this.doc.compose(change);
-      this.history.record(change, this.doc, selection);
-      this.updateView();
-    }
-  }
-
   enable(enabled: boolean = true) {
     this.dom.contentEditable = String(enabled);
     if (enabled) {
@@ -419,42 +127,6 @@ export class Editor extends EventEmitter {
     if (this.doc.length() > 1) return false;
     const firstOp = this.doc.ops[0];
     return !firstOp || (firstOp.insert === "\n" && this.doc.ops.length === 1);
-  }
-
-  // 将输入的事件翻译成Delta
-  getDeltaFromInput(e: InputEvent, index: number): Delta | null {
-    if (e.inputType === "insertText" && e.data) {
-      return new Delta().retain(index).insert(e.data);
-    }
-
-    if (e.inputType === "deleteContentBackward") {
-      if (index <= 0) return null;
-      // 使用backspace删除键
-      return new Delta().retain(index - 1).delete(1);
-    }
-
-    if (e.inputType === "insertParagraph") {
-      // 查看当前的样式
-      const currentFormat = this._getLineFormat(index);
-
-      if (currentFormat.list && this._isLineEmpty(index)) {
-        const lineEnd = this._findLineEnd(index);
-        return new Delta().retain(lineEnd).retain(1, { list: null });
-      }
-      // 处理逻辑：
-      // 在当前位置插入一个具有继承属性的回车
-      // 清除最后的回车当中的样式
-      const delta = new Delta().retain(index).insert("\n", currentFormat);
-      if (currentFormat.header) {
-        const lineEnd = this._findLineEnd(index);
-        const distanceToOldNewLine = lineEnd - index;
-        delta.retain(distanceToOldNewLine).retain(1, { header: null });
-      }
-      return delta;
-    }
-
-    console.warn("未处理的输入类型:", e.inputType);
-    return null;
   }
 
   /**
@@ -506,7 +178,7 @@ export class Editor extends EventEmitter {
     if (!range) return;
 
     // 找到当前行的结尾 => 换行符的位置
-    const lineEndIndex = this._findLineEnd(range.index);
+    const lineEndIndex = DocumentHelper.findLineEnd(this.doc, range.index);
 
     const change = new Delta()
       .retain(lineEndIndex)
@@ -546,7 +218,7 @@ export class Editor extends EventEmitter {
     }
 
     //还需要检查当前行的块级样式
-    const lineFormat = this._getLineFormat(range.index);
+    const lineFormat = DocumentHelper.getLineFormat(this.doc, range.index);
     Object.assign(formats, lineFormat);
     return formats;
   }
@@ -597,139 +269,6 @@ export class Editor extends EventEmitter {
     this.updateView();
 
     this.selection.setSelection(index + 2);
-  }
-
-  /**
-   * 获取当前行，光标之前的文本（检测md文件使用）
-   * @param index 光标位置
-   * @returns
-   */
-  private _getTextBeforeCursor(index: number): string {
-    const lineStart = this._findLineStart(index);
-    const slice = this.doc.slice(lineStart, index);
-
-    return slice.ops.reduce((text, op) => {
-      if (typeof op.insert === "string") return text + op.insert;
-      return text;
-    }, "");
-  }
-
-  private _updateSelectionByMouse(x: number, y: number) {
-    let range: Range | null = null;
-    // 兼容性处理
-    if (document.caretRangeFromPoint) {
-      // Chrome Safari Edge
-      range = document.caretRangeFromPoint(x, y);
-    } else if (document.caretPositionFromPoint) {
-      // Firefox
-      const pos = document.caretPositionFromPoint(x, y);
-      if (pos) {
-        range = document.createRange();
-        range.setStart(pos.offsetNode, pos.offset);
-        range.collapse(true);
-      }
-    }
-
-    if (range && this.dom.contains(range.startContainer)) {
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      // 同步更新最新的状态
-    }
-  }
-
-  /**
-   * 辅助方法：
-   * 找到当前位置最后的第一个换行符的索引
-   * 用于定位当前行的结尾，以便于应用块级样式
-   * @param startIndex
-   */
-  private _findLineEnd(startIndex: number): number {
-    let currentPos = 0;
-
-    for (const op of this.doc.ops) {
-      const len = typeof op.insert === "string" ? op.insert.length : 1;
-
-      // 如果当前的op在我们查找的范围之后，或者包含查找起点
-      if (currentPos + len > startIndex) {
-        if (typeof op.insert === "string") {
-          const offsetInOp = Math.max(0, startIndex - currentPos);
-          const relativeIndex = op.insert.indexOf("\n", offsetInOp);
-
-          if (relativeIndex !== -1) {
-            // 返回绝对索引，Op起始位置+偏移的位置
-            return currentPos + relativeIndex;
-          }
-        }
-      }
-      currentPos += len;
-    }
-
-    return this.doc.length();
-  }
-
-  /**
-   * 辅助方法：
-   * 找到当前行的开始位置
-   * @param index
-   */
-  private _findLineStart(index: number): number {
-    let currentPos = 0;
-    let lastNewLinePos = -1;
-
-    for (const op of this.doc.ops) {
-      const len = typeof op.insert === "string" ? op.insert.length : 1;
-
-      if (currentPos < index) {
-        if (typeof op.insert === "string") {
-          let relativeIndex = op.insert.indexOf("\n");
-          while (relativeIndex !== -1 && currentPos + relativeIndex < index) {
-            lastNewLinePos = currentPos + relativeIndex;
-            relativeIndex = op.insert.indexOf("\n", relativeIndex + 1);
-          }
-        }
-      } else {
-        break;
-      }
-
-      currentPos += len;
-    }
-    return lastNewLinePos + 1;
-  }
-
-  /**
-   * 判断是不是空行
-   * @param index
-   * @returns
-   */
-  private _isLineEmpty(index: number): boolean {
-    const start = this._findLineStart(index);
-    const end = this._findLineEnd(index);
-    return start === end;
-  }
-
-  /**
-   * 获取当前行结尾的回车属性
-   * @param index
-   * @returns
-   */
-  private _getLineFormat(index: number): Record<string, any> {
-    // 找到这一行的结尾
-    const lineEndIndex = this._findLineEnd(index);
-
-    if (lineEndIndex >= this.doc.length()) return {};
-
-    // 获取\n的Op
-    let currentPos = 0;
-    for (const op of this.doc.ops) {
-      const len = typeof op.insert === "string" ? op.insert.length : 1;
-      if (currentPos + len > lineEndIndex) {
-        return op.attributes || {};
-      }
-      currentPos += len;
-    }
-
-    return {};
   }
 
   /**

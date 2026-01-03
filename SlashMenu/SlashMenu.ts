@@ -123,7 +123,7 @@ export class SlashMenu {
 
   show(x: number, y: number) {
     this.dom.style.left = `${x}px`;
-    this.dom.style.top = `${y + 20}px`;
+    this.dom.style.top = `${y + 5}px`;
     this.dom.style.display = "block";
     this.dom.classList.add("is-active");
   }

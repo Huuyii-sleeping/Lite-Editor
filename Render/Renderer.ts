@@ -1,6 +1,11 @@
 import Delta from "../Delta/Delta";
 import Op from "../Delta/Op";
 import Prism from "prismjs";
+import "prismjs/themes/prism.css";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-markup";
 
 export class Renderer {
   static formats: Record<string, any> = {

@@ -2,6 +2,7 @@
 
 import Delta from "../Delta/Delta";
 import { Editor } from "../Editor/Editor";
+import { DocumentHelper } from "../Editor/Helper/DocumentHelper";
 
 export class ImageResizer {
   editor: Editor;
@@ -107,7 +108,10 @@ export class ImageResizer {
     this.isResizing = false;
 
     const finalWidth = this.currentImage.offsetWidth;
-    const index = this.editor.findDOMNodeIndex(this.currentImage);
+    const index = DocumentHelper.findDOMNodeIndex(
+      this.editor.dom,
+      this.currentImage
+    );
 
     if (index !== -1) {
       const change = new Delta().retain(index).retain(1, { width: finalWidth });
