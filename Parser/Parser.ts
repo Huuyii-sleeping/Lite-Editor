@@ -132,11 +132,29 @@ export class Parser {
             blockAttributes.list = "bullet";
           }
         }
+
+        // 处理待办事项
         if (element.classList.contains("todo-item")) {
           const isCompleted =
             element.classList.contains("is-completed") ||
             element.querySelector(".todo-checkbox")?.textContent?.includes("☑");
           blockAttributes.list = isCompleted ? "checked" : "unchecked";
+        }
+
+        // 处理对齐方式
+        const styleAlign = element.style.textAlign;
+        if (styleAlign) {
+          if (["center", "right", "justify", "left"].includes(styleAlign)) {
+            if (styleAlign !== "left") {
+              blockAttributes.align = styleAlign;
+            }
+          }
+        } else if (element.getAttribute("align")) {
+          // 兼容老式的一些属性 <p align="center">
+          const attrAlign = element.getAttribute("align");
+          if (attrAlign && ["center", "right", "justify"].includes(attrAlign)) {
+            blockAttributes.align = attrAlign;
+          }
         }
         // 块级元素最后插入换行元素
         delta.insert("\n", blockAttributes);

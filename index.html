@@ -88,6 +88,21 @@
       <button onclick="load()">加载示例数据</button>
       <button onclick="window.editor.enable()">启用编辑</button>
       <button onclick="window.editor.disable()">只读模式</button>
+      <button
+        onclick="event.preventDefault(); editor.formatLine('align', 'center')"
+      >
+        Center
+      </button>
+      <button
+        onclick="event.preventDefault(); editor.formatLine('align', 'left')"
+      >
+        Left
+      </button>
+      <button
+        onclick="event.preventDefault(); editor.formatLine('align', 'right')"
+      >
+        Right
+      </button>
     </div>
     <div id="editor" data-placeholder="请输入正文..."></div>
     <div

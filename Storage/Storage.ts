@@ -8,9 +8,14 @@ export class StorageManager {
   // 状态回调
   onStatusChange?: (state: "saving" | "saved" | "error") => void;
 
-  constructor(editor: Editor, key: string = "my-editor-content") {
+  constructor(
+    editor: Editor,
+    autoSave: boolean = true,
+    key: string = "my-editor-content"
+  ) {
     this.editor = editor;
     this.storageKey = key;
+    if (!autoSave) return;
     this.bindEvents();
   }
 

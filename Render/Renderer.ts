@@ -33,13 +33,20 @@ export class Renderer {
     let html = "";
     const lines = this._splitDeltaIntoLines(delta);
 
-    // 使用 while 循环，方便在处理代码块时跳过行
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
       const blockAttrs = line.attrs || {};
 
-      // === 核心逻辑修改：处理代码块 ===
+      let styleStr = "";
+
+      if (blockAttrs.align) {
+        styleStr += `text-align: ${blockAttrs.align};`;
+      }
+      // [TODO] 可能会有其他不同的样式，这里可以进行扩展
+
+      const styleAttr = styleStr ? ` style="${styleStr}"` : "";
+
       if (blockAttrs["code-block"]) {
         let codeLines: string[] = [];
         let j = i;
@@ -49,7 +56,6 @@ export class Renderer {
           lines[j].attrs &&
           lines[j].attrs["code-block"]
         ) {
-          // 获取该行的纯文本内容
           const rawText = lines[j].ops
             .map((op) => (typeof op.insert === "string" ? op.insert : ""))
             .join("");
@@ -74,7 +80,7 @@ export class Renderer {
 
         if (fullCodeText.endsWith("\n")) highlighted += "\n";
 
-        html += `<pre class="language-${lang}"><code>${highlighted}</code></pre>`;
+        html += `<pre class="language-${lang}"${styleAttr}><code>${highlighted}</code></pre>`;
 
         // 注意：因为循环末尾没有 i++ (我们是手动控制)，所以这里赋值即可
         i = j;
@@ -90,7 +96,7 @@ export class Renderer {
           const isChecked = blockAttrs.list === "checked";
           html += `<div class="todo-item ${
             isChecked ? "is-completed" : ""
-          }"><span class="todo-checkbox" contenteditable="false">${
+          }"${styleAttr}><span class="todo-checkbox" contenteditable="false">${
             isChecked ? "☑️" : "⬜"
           }</span><span class="todo-content">${contentHtml}</span></div>`;
         } else {
@@ -109,7 +115,7 @@ export class Renderer {
             html += `<${listType}>`;
           }
 
-          html += `<li>${contentHtml}</li>`;
+          html += `<li${styleAttr}>${contentHtml}</li>`;
 
           const nextLineType =
             nextLine?.attrs?.list === "ordered"
@@ -122,12 +128,12 @@ export class Renderer {
           }
         }
       } else if (blockAttrs.header) {
-        const tagName = `h${blockAttrs.header}`;
-        html += `<${tagName}>${contentHtml}</${tagName}>`;
+        html += `<h${blockAttrs.header}${styleAttr}>${contentHtml}</h${blockAttrs.header}>`;
       } else if (blockAttrs.blockquote) {
-        html += `<blockquote>${contentHtml}</blockquote>`;
+        html += `<blockquote${styleAttr}>${contentHtml}</blockquote>`;
       } else {
-        html += `<div>${contentHtml}</div>`;
+        const finalContent = contentHtml === "" ? "<br>" : contentHtml;
+        html += `<div${styleAttr}>${finalContent}</div>`;
       }
 
       // 移动到下一行

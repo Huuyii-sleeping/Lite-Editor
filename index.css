@@ -325,3 +325,18 @@ span.token {
   text-decoration: line-through;
   color: #888;
 }
+
+/* 编辑器容器 */
+.editor-container {
+  /* 确保容器能处理空白符，但子元素是 div 后，这个主要影响 div 内部 */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 强制编辑器内的所有块级元素（div, p, h1...）的默认边距更紧凑 */
+.editor-container div,
+.editor-container p {
+  margin: 0; /* 去掉 div 默认可能存在的 margin */
+  min-height: 1.5em; /* 确保空行也有高度，方便点击 */
+  line-height: 1.6; /* 设置舒适的行高 */
+}

@@ -1,10 +1,15 @@
+import Delta from "../Delta/Delta";
 import { Editor } from "../Editor/Editor";
+import { DocumentHelper } from "../Editor/Helper/DocumentHelper";
 
 interface MenuItem {
   icon: string;
   label: string;
-  action: () => void;
+  action?: () => void;
   hint?: string;
+
+  format?: string;
+  value?: any;
 }
 
 export class SlashMenu {
@@ -33,7 +38,9 @@ export class SlashMenu {
         icon: "H1",
         label: "一级标题",
         hint: "#",
-        action: () => this.editor.formatLine("header", 1),
+        // [修改] 不再用 action，而是直接描述意图
+        format: "header",
+        value: 1,
       },
       {
         icon: "H2",
@@ -84,15 +91,37 @@ export class SlashMenu {
         icon: "➖",
         label: "分割线",
         hint: "---",
-        action: () => {
-          this.editor.insertDivider();
-        },
+        action: () => this.editor.insertDivider(),
       },
       {
         icon: "✅",
         label: "待办列表",
         hint: "[]",
         action: () => this.editor.formatLine("list", "unchecked"),
+      },
+      {
+        icon: "⬅️",
+        label: "左对齐",
+        hint: "默认",
+        action: () => this.editor.formatLine("align", null),
+      },
+      {
+        icon: "↔️",
+        label: "居中对齐",
+        hint: "",
+        action: () => this.editor.formatLine("align", "center"),
+      },
+      {
+        icon: "➡️",
+        label: "右对齐",
+        hint: "",
+        action: () => this.editor.formatLine("align", "right"),
+      },
+      {
+        icon: "📰",
+        label: "两端对齐",
+        hint: "Justify",
+        action: () => this.editor.formatLine("align", "justify"),
       },
     ];
   }
@@ -120,10 +149,31 @@ export class SlashMenu {
   private _execute(item: MenuItem) {
     // 删除用户输入的光标 /
     const range = this.editor.selection.getSelection();
-    if (range) {
-      this.editor.deleteText(range.index - 1, 1);
+    if (!range) {
+      this.hide();
+      return;
     }
-    item.action();
+
+    if (item.format) {
+      const slashIndex = range.index - 1;
+      const lineEndIndex = DocumentHelper.findLineEnd(
+        this.editor.doc,
+        range.index
+      );
+      const change = new Delta()
+        .retain(slashIndex)
+        .delete(1)
+        .retain(lineEndIndex - range.index)
+        .retain(1, { [item.format!]: item.value });
+
+      this.editor.submitChange(change);
+      this.editor.selection.setSelection(range.index - 1);
+    } else if (item.action) {
+      this.editor.deleteText(range.index - 1, 1);
+      setTimeout(() => {
+        item.action!();
+      }, 0);
+    }
     this.hide();
   }
 

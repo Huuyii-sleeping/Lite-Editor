@@ -56,7 +56,7 @@ export class Editor extends EventEmitter {
     this.inputManager = new InputManager(this);
     this.dragManager = new DragManager(this);
     this.shortcutManager = new ShortcutManager(this);
-    this.storageManager = new StorageManager(this);
+    this.storageManager = new StorageManager(this, false);
 
     const statusDiv = document.getElementById("editor-status");
     if (statusDiv) {
@@ -221,11 +221,12 @@ export class Editor extends EventEmitter {
    */
   formatLine(format: string, value: any) {
     const range = this.selection.getSelection();
+    console.log(range);
     if (!range) return;
 
     // 找到当前行的结尾 => 换行符的位置
     const lineEndIndex = DocumentHelper.findLineEnd(this.doc, range.index);
-
+    
     const change = new Delta()
       .retain(lineEndIndex)
       .retain(1, { [format]: value });
