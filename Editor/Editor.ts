@@ -292,7 +292,7 @@ export class Editor extends EventEmitter {
     const change = new Delta()
       .retain(selection.index)
       .insert("\n")
-      .insert(" ", { "code-block": true })
+      .insert("\u200B", { "code-block": true })
       .insert("\n", { "code-block": true })
       .insert("\n");
 

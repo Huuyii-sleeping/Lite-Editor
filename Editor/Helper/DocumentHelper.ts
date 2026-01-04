@@ -101,6 +101,8 @@ export class DocumentHelper {
                 if (child !== targetNode && !child.contains(targetNode)) {
                   if (child.nodeType === Node.TEXT_NODE) {
                     index += (child.textContent || "").length;
+                  } else if (child.nodeName === "BR") {
+                    if (line.childNodes.length > 1) index += 1;
                   } else if (child.nodeName === "IMG") {
                     index += 1;
                   } else {
@@ -168,6 +170,10 @@ export class DocumentHelper {
       }
       if (child.nodeType === Node.TEXT_NODE) {
         len += (child.textContent || "").length;
+      } else if (child.nodeName === "BR") {
+        if (line.childNodes.length > 1) {
+          len += 1;
+        }
       } else if (child.nodeName === "IMG") {
         len += 1;
       } else {

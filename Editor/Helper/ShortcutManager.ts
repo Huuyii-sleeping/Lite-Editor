@@ -1,3 +1,4 @@
+import Delta from "../../Delta/Delta";
 import { Editor } from "../Editor";
 import { DocumentHelper } from "./DocumentHelper";
 
@@ -11,6 +12,10 @@ export class ShortcutManager {
 
   bindEvents() {
     this.editor.dom.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        this._handleEnter(e);
+        return;
+      }
       if (e.key === "Tab") {
         this._handleTab(e);
         return;
@@ -20,6 +25,26 @@ export class ShortcutManager {
         this._handleCommand(e);
       }
     });
+  }
+
+  /**
+   * 为了解决回车导致table错误渲染的问题
+   * 正常回车回添加一个 \n
+   * 导致最后渲染错误
+   * 使用一个 \u2028 软回车
+   * @param e
+   * @returns
+   */
+  private _handleEnter(e: KeyboardEvent) {
+    const range = this.editor.selection.getSelection();
+    if (!range) return;
+    const attrs = DocumentHelper.getLineFormat(this.editor.doc, range.index);
+    if (attrs.table) {
+      e.preventDefault();
+      const delta = new Delta().retain(range.index).insert("\u2028").insert(" ")
+      this.editor.submitChange(delta);
+      this.editor.selection.setSelection(range.index + 2);
+    }
   }
 
   private _handleTab(e: KeyboardEvent) {

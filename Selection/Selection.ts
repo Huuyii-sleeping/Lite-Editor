@@ -118,6 +118,9 @@ export class SelectionManager {
       ) {
         return;
       }
+      if (child.nodeName === "BR") {
+        if (element.childNodes.length > 1) len += 1;
+      }
       if (child.nodeName === "IMG" || child.nodeName === "HR") {
         len += 1;
       } else {
@@ -152,6 +155,10 @@ export class SelectionManager {
         (child as Element).classList.contains("todo-checkbox")
       ) {
         return;
+      }
+      if (child.nodeName === "BR") {
+        if (child.parentNode && child.parentNode.childNodes.length > 1)
+          len += 1;
       }
       if (child.nodeName === "IMG" || child.nodeName === "HR") {
         len += 1;
@@ -263,7 +270,14 @@ export class SelectionManager {
         continue; // 直接 continue，不要增加 current
       }
 
+      if (child.nodeName === "BR") {
+        if (element.childNodes.length === 1) continue;
+      }
+
       if (child.nodeName === "IMG" || child.nodeName === "HR") {
+        if (localIndex === current) {
+          return { node: element, offset: i };
+        }
         if (current + 1 >= localIndex) {
           return { node: element, offset: i + 1 };
         }

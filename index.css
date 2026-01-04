@@ -356,8 +356,11 @@ span.token {
   border: 1px solid #ddd;
   padding: 8px;
   min-width: 50px;
-  vertical-align: top; /* 默认顶部对齐 */
+  vertical-align: top;
   background-color: #fff;
+
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* 选中或 hover 效果 (可选) */
