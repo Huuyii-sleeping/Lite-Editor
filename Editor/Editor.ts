@@ -13,13 +13,18 @@ import { DragManager } from "./Helper/DragManager";
 import { DocumentHelper } from "./Helper/DocumentHelper";
 import { ShortcutManager } from "./Helper/ShortcutManager";
 import { StorageManager } from "../Storage/Storage";
+import { TableMenu } from "../TableMenu/TableManu";
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
   doc: Delta;
+  // 渲染中心
   renderer: Renderer;
+  // 选区管理
   selection: SelectionManager;
+  // 历史记录
   history: HistoryManager;
+  // 粘贴操作
   clipboard: Clipboard;
   // 标记位：标记是否正在进行中文输入
   isComposing: boolean = false;
@@ -31,10 +36,16 @@ export class Editor extends EventEmitter {
   imageResizer: ImageResizer;
   // / 展示菜单功能
   slashMenu: SlashMenu;
+  // 拦截input的操作集合
   inputManager: InputManager;
+  // 拖拽上传
   dragManager: DragManager;
+  // 快捷键
   shortcutManager: ShortcutManager;
+  // 存储功能
   storageManager: StorageManager;
+  // 表格右键操作
+  tableMenu: TableMenu;
 
   constructor(selector: string) {
     super();
@@ -57,6 +68,7 @@ export class Editor extends EventEmitter {
     this.dragManager = new DragManager(this);
     this.shortcutManager = new ShortcutManager(this);
     this.storageManager = new StorageManager(this, false);
+    this.tableMenu = new TableMenu(this);
 
     const statusDiv = document.getElementById("editor-status");
     if (statusDiv) {
