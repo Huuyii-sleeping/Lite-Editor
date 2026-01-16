@@ -14,6 +14,7 @@ import { DocumentHelper } from "./Helper/DocumentHelper";
 import { ShortcutManager } from "./Helper/ShortcutManager";
 import { StorageManager } from "../Storage/Storage";
 import { TableMenu } from "../TableMenu/TableMenu";
+import { Serializer } from "../Serializer/Serializer";
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
@@ -46,6 +47,8 @@ export class Editor extends EventEmitter {
   storageManager: StorageManager;
   // 表格右键操作
   tableMenu: TableMenu;
+  // 支持md导出的功能
+  serializer: Serializer;
 
   constructor(selector: string) {
     super();
@@ -69,6 +72,7 @@ export class Editor extends EventEmitter {
     this.shortcutManager = new ShortcutManager(this);
     this.storageManager = new StorageManager(this, false);
     this.tableMenu = new TableMenu(this);
+    this.serializer = new Serializer();
 
     const statusDiv = document.getElementById("editor-status");
     if (statusDiv) {
@@ -185,6 +189,10 @@ export class Editor extends EventEmitter {
     if (this.doc.length() > 1) return false;
     const firstOp = this.doc.ops[0];
     return !firstOp || (firstOp.insert === "\n" && this.doc.ops.length === 1);
+  }
+
+  getMarkdown(): string {
+    return this.serializer.serialize(this.doc);
   }
 
   /**
