@@ -3,20 +3,20 @@ import Op from "../Delta/Op";
 import { HistoryManager } from "../History/History";
 import { Renderer } from "../Render/Renderer";
 import { SelectionManager } from "../Selection/Selection";
-import { Clipboard } from "../Clipboard/Clipboard";
+import { Clipboard } from "../Tool/Clipboard";
 import { EventEmitter } from "../EventEmitter/EventEmitter";
-import { FloatingMenu } from "../FloatingMenu/FloatingMenu";
-import { ImageResizer } from "../ImageResizer/ImageResizer";
-import { SlashMenu } from "../SlashMenu/SlashMenu";
+import { FloatingMenu } from "../Menu/FloatingMenu";
+import { SlashMenu } from "../Menu/SlashMenu";
 import { InputManager } from "./Helper/InputManager";
 import { DragManager } from "./Helper/DragManager";
 import { DocumentHelper } from "./Helper/DocumentHelper";
 import { ShortcutManager } from "./Helper/ShortcutManager";
 import { StorageManager } from "../Storage/Storage";
-import { TableMenu } from "../TableMenu/TableMenu";
+import { TableMenu } from "../Menu/TableMenu";
 import { Serializer } from "../Serializer/Serializer";
-import { LinkTooltip } from "../LinkTooltip/LinkTooltip";
-import { BlockHandle } from "../BlockHandle/BlockHandle";
+import { LinkTooltip } from "../Menu/LinkTooltip";
+import { BlockHandle } from "../Tool/BlockHandle";
+import { ImageResizer } from "../Resizer/ImageResizer";
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
