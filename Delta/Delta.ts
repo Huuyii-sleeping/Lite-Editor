@@ -236,6 +236,13 @@ class Delta {
     return inverted;
   }
 
+  concat(other: Delta): Delta {
+    other.ops.forEach((op) => {
+      this.push(op);
+    });
+    return this;
+  }
+
   length(): number {
     return this.ops.reduce((length, elem) => {
       return length + Op.length(elem);

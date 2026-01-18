@@ -16,6 +16,7 @@ import { StorageManager } from "../Storage/Storage";
 import { TableMenu } from "../TableMenu/TableMenu";
 import { Serializer } from "../Serializer/Serializer";
 import { LinkTooltip } from "../LinkTooltip/LinkTooltip";
+import { BlockHandle } from "../BlockHandle/BlockHandle";
 
 export class Editor extends EventEmitter {
   dom: HTMLElement;
@@ -52,6 +53,8 @@ export class Editor extends EventEmitter {
   serializer: Serializer;
   // 对连接的更改
   linkTooltip: LinkTooltip;
+  // 实现块级元素的移动
+  blockHandle: BlockHandle;
 
   constructor(selector: string) {
     super();
@@ -67,7 +70,7 @@ export class Editor extends EventEmitter {
     this.selection = new SelectionManager(this.dom);
     this.history = new HistoryManager(this);
     this.clipboard = new Clipboard(this);
-    this.floatingMenu = new FloatingMenu(this);
+    this.floatingMenu = new FloatingMenu(this, false);
     this.imageResizer = new ImageResizer(this);
     this.slashMenu = new SlashMenu(this);
     this.inputManager = new InputManager(this);
@@ -77,6 +80,7 @@ export class Editor extends EventEmitter {
     this.tableMenu = new TableMenu(this);
     this.serializer = new Serializer();
     this.linkTooltip = new LinkTooltip(this);
+    this.blockHandle = new BlockHandle(this);
 
     const statusDiv = document.getElementById("editor-status");
     if (statusDiv) {
@@ -164,6 +168,50 @@ export class Editor extends EventEmitter {
     this.doc = this.doc.compose(change);
     this.updateView();
     this.selection.setSelection(index);
+  }
+
+  /**
+   * 移动块级元素
+   * @param fromIndex
+   * @param toIndex
+   */
+  moveBlock(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+
+    // 找到源块的位置
+    const fromLineStart = DocumentHelper.findLineStart(this.doc, fromIndex);
+    const fromLineEnd = DocumentHelper.findLineEnd(this.doc, fromIndex);
+
+    // 注意我们要将最后的换行符号也统一的带走，否则会出现问题
+    let length = fromLineEnd - fromLineStart + 1;
+    if (fromLineStart + length > this.doc.length()) {
+      length = this.doc.length() - fromLineStart;
+    }
+
+    const blockDelta = this.doc.slice(fromLineStart, fromLineStart + length);
+    // 构建原子操作，Delta+Insert
+    // 注意：如果先delete，文档变短，toIndex可能失效
+    // 先计算调整之后的insert位置，或者构建一个组合delta
+    const change = new Delta();
+
+    if (toIndex > fromIndex) {
+      // 向下拖拽
+      // 实现逻辑：retain：toIndex insert：block delete：原来的位置
+      change.retain(fromLineStart).delete(length);
+      const adjustedToIndex = toIndex - length;
+      change.retain(adjustedToIndex - fromLineStart);
+      change.concat(blockDelta);
+    } else {
+      // 向上拖拽
+      // retain:toIndex Insert:block retain:fromIndex-toIndex deleta:block
+      change.retain(toIndex);
+      change.concat(blockDelta);
+      const distance = fromLineStart - toIndex;
+      change.retain(distance);
+      change.delete(length);
+    }
+
+    this.submitChange(change);
   }
 
   submitChange(change: Delta) {

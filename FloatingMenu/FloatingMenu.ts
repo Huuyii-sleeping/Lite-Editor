@@ -3,10 +3,15 @@
 import { Editor } from "../Editor/Editor";
 
 export class FloatingMenu {
-  dom: HTMLElement;
+  dom: HTMLElement | null = null;
   editor: Editor;
 
-  constructor(editor: Editor) {
+  constructor(editor: Editor, open = true) {
+    if (!open) {
+      this.editor = editor;
+      this.dom = null;
+      return;
+    }
     this.editor = editor;
     this.dom = this._createDOM();
     document.body.appendChild(this.dom);
@@ -98,7 +103,7 @@ export class FloatingMenu {
     });
 
     window.addEventListener("scroll", () => {
-      if (this.dom.style.display !== "none") {
+      if (this.dom!.style.display !== "none") {
         this._updatePosition();
       }
     });
@@ -107,18 +112,18 @@ export class FloatingMenu {
   update() {
     const range = this.editor.selection.getSelection();
     if (!range || range.length === 0) {
-      this.dom.style.display = "none";
+      this.dom!.style.display = "none";
       return;
     }
 
-    this.dom.style.display = "flex";
+    this.dom!.style.display = "flex";
     this._updateButtonState();
     this._updatePosition();
   }
 
   private _updateButtonState() {
     const formats = this.editor.getFormat();
-    const buttons = this.dom.querySelectorAll("button");
+    const buttons = this.dom!.querySelectorAll("button");
 
     buttons.forEach((button) => {
       const format = button.dataset.format;
@@ -140,8 +145,8 @@ export class FloatingMenu {
     const nativeRange = selection.getRangeAt(0);
     const rect = nativeRange.getBoundingClientRect(); // 获取选区在视口中的矩形
     // 菜单的实际渲染高度/宽度 包含内边距，边框，但是不包含外边距
-    const menuHeight = this.dom.offsetHeight;
-    const menuWidth = this.dom.offsetWidth;
+    const menuHeight = this.dom!.offsetHeight;
+    const menuWidth = this.dom!.offsetWidth;
 
     // scrollX/Y 获取页面垂直/水平滚动的距离 视口坐标 => 页面全局坐标
     // 先到上方 再去加上滚动的距离 就是实际的位置
@@ -160,10 +165,10 @@ export class FloatingMenu {
       isBelow = true;
     }
 
-    if (isBelow) this.dom.classList.add("is-flipped");
-    else this.dom.classList.remove("is-flipped");
+    if (isBelow) this.dom!.classList.add("is-flipped");
+    else this.dom!.classList.remove("is-flipped");
 
-    this.dom.style.top = `${top}px`;
-    this.dom.style.left = `${left}px`;
+    this.dom!.style.top = `${top}px`;
+    this.dom!.style.left = `${left}px`;
   }
 }
